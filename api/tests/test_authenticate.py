@@ -2,9 +2,9 @@ import os
 from unittest import mock
 
 import pytest
+import jwt
 from flask import g
 from api.PclusterApiHandler import authenticate, USER_ROLES_CLAIM
-from jose import jwt
 
 def test_authenticate(mock_disable_auth):
     """

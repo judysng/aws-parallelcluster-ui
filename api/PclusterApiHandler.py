@@ -16,10 +16,10 @@ import time
 
 import boto3
 import botocore
+import jwt
 import requests
 import yaml
 from flask import abort, redirect, request, Blueprint
-from jose import jwt
 
 from api.exception.exceptions import RefreshTokenError
 from api.pcm_globals import set_auth_cookies_in_context, logger, auth_cookies
