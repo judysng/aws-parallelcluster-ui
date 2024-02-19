@@ -14,12 +14,13 @@ import os
 import re
 import time
 
+import base64
 import boto3
 import botocore
+import jwt
 import requests
 import yaml
 from flask import abort, redirect, request, Blueprint
-from jose import jwt
 
 from api.exception.exceptions import RefreshTokenError
 from api.pcm_globals import set_auth_cookies_in_context, logger, auth_cookies
@@ -62,8 +63,32 @@ if not JWKS_URL:
     JWKS_URL = os.getenv("JWKS_URL",
                          f"https://cognito-idp.{REGION}.amazonaws.com/{USER_POOL_ID}/" ".well-known/jwks.json")
 
+
 def jwt_decode(token, audience=None, access_token=None):
-    return jwt.decode(token, requests.get(JWKS_URL).json(), audience=audience, access_token=access_token)
+    jwks_client = jwt.PyJWKClient(JWKS_URL)
+    signing_key = jwks_client.get_signing_key_from_jwt(token)
+
+    data = jwt.decode_complete(
+        token,
+        key=signing_key,
+        algorithm="RS256",  # Amazon Cognito uses RS256 to sign
+        audience=audience,
+    )
+    payload, header = data["payload"], data["header"]
+
+    # If access_token is used, validate the at_hash claim
+    if access_token:
+        # get the pyjwt algorithm object
+        alg_obj = jwt.get_algorithm_by_name(header["alg"])
+
+        # compute at_hash, then validate / assert
+        digest = alg_obj.compute_hash_digest(access_token)
+        at_hash = base64.urlsafe_b64encode(digest[: (len(digest) // 2)]).rstrip("=")
+
+        if at_hash != payload["at_hash"]:
+            raise jwt.DecodeError("at_hash claim does not match access_token.")
+
+    return payload
 
 
 def setup_api_credentials(role_arn, credential_external_id=None):
